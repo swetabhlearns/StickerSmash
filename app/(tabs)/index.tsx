@@ -1,74 +1,112 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React from "react";
+import {
+  Text,
+  View,
+  StyleSheet,
+  FlatList,
+  ActivityIndicator,
+  SafeAreaView,
+} from "react-native";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { NEWS_API_KEY } from "@/constants/constant";
+import { NewsCard } from "@/components/NewsCard";
+import { useQueryFocusAware } from "@/hooks/useFocusAware";
+import SearchBar from "@/components/SearchBar";
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+export default function AboutScreen() {
+  const isFocused = useQueryFocusAware();
+  const [query, setQuery] = React.useState("bitcoin");
 
-export default function HomeScreen() {
+  const fetchNews = async ({ pageParam = 1 }) => {
+    const response = await fetch(
+      `https://newsapi.org/v2/everything?q=${query}&sortBy=publishedAt&page=${pageParam}&pageSize=20&apiKey=${NEWS_API_KEY}`
+    );
+    return response.json();
+  };
+
+  const {
+    data,
+    error,
+    fetchNextPage,
+    hasNextPage,
+    isFetching,
+    isFetchingNextPage,
+    isError,
+    isLoading,
+    status,
+    refetch,
+  } = useInfiniteQuery({
+    queryKey: ["projects", query],
+    queryFn: fetchNews,
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, pages) => {
+      if (lastPage.articles.length < 20) return undefined;
+      return pages.length + 1;
+    },
+    enabled: isFocused,
+  });
+
+  const newsData = data?.pages.flatMap((page) => page.articles) || [];
+
+  const handleSearch = (newQuery: string) => {
+    setQuery(newQuery || "bitcoin");
+  };
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <SearchBar onSearch={handleSearch} />
+        {isLoading ? (
+          <View style={styles.container}>
+            <ActivityIndicator size="large" color="#1e90ff" />
+          </View>
+        ) : isError ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>Error: An Error Occured</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={newsData}
+            renderItem={({ item }) => <NewsCard news={item} />}
+            keyExtractor={(item, index) => index.toString()}
+            onEndReached={() => hasNextPage && fetchNextPage()}
+            onEndReachedThreshold={0.5}
+            ListFooterComponent={
+              isFetchingNextPage ? (
+                <ActivityIndicator size="large" color="#1e90ff" />
+              ) : null
+            }
+          />
+        )}
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#25292e",
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  container: {
+    flex: 1,
+    backgroundColor: "#25292e",
+    padding: 10,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#25292e",
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#25292e",
+  },
+  errorText: {
+    color: "#ff4c4c",
+    fontSize: 16,
   },
 });
